@@ -1,0 +1,339 @@
+// lib/screens/home_screen.dart
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:task_tracker/models/priority_box.dart';
+import 'package:task_tracker/widgets/priority_box_card.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+class HomeScreen extends StatelessWidget {
+  final List<PriorityBox> priorityBoxes;
+  final Function(PriorityBox) onBoxTapped;
+  final VoidCallback onShowDialog;
+
+  const HomeScreen({
+    super.key,
+    required this.priorityBoxes,
+    required this.onBoxTapped,
+    required this.onShowDialog,
+  });
+
+  int get totalTasks {
+    return priorityBoxes.fold(0, (sum, box) => sum + box.tasks.length);
+  }
+
+  int get completedTasks {
+    return priorityBoxes.fold(0, (sum, box) => 
+      sum + box.tasks.where((task) => task.isCompleted).length);
+  }
+
+  // Build stats overview widget
+  Widget _buildStatsOverview(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark 
+              ? [Colors.blueGrey.shade800, Colors.blueGrey.shade900]
+              : [Colors.blue.shade50, Colors.blue.shade100],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Productivity Stats',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(51), // 0.2 * 255 ≈ 51
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'This Week',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem(
+                context,
+                value: totalTasks.toString(),
+                label: 'Total Tasks',
+                icon: Icons.assignment_outlined,
+                color: Theme.of(context).primaryColor,
+              ),
+              _buildStatItem(
+                context,
+                value: '${((completedTasks / (totalTasks > 0 ? totalTasks : 1)) * 100).toInt()}%',
+                label: 'Completed',
+                icon: Icons.check_circle_outline,
+                color: Colors.green,
+              ),
+              _buildStatItem(
+                context,
+                value: '${priorityBoxes.length}',
+                label: 'Projects',
+                icon: Icons.folder_copy_outlined,
+                color: Colors.orange,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build a single stat item
+  Widget _buildStatItem(
+    BuildContext context, {
+    required String value,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withAlpha(25), // 0.1 * 255 ≈ 25
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            color: isDark ? Colors.white70 : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Build the "Add Project" button
+  Widget _buildAddProjectButton(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return GestureDetector(
+      onTap: onShowDialog,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[800] : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(25), // 0.1 * 255 ≈ 25
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withAlpha(25), // 0.1 * 255 ≈ 25
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.add_rounded,
+                color: Theme.of(context).primaryColor,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add Project',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
+      body: CustomScrollView(
+        slivers: [
+          // App Bar
+          SliverAppBar(
+            expandedHeight: 200,
+            floating: false,
+            pinned: true,
+            backgroundColor: isDark ? Colors.grey[900] : Colors.blue.shade50,
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.only(left: 20, bottom: 16, right: 20),
+              title: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hello, User',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$completedTasks of $totalTasks tasks completed',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: isDark ? Colors.grey[400] : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              Container(
+                margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+                child: CircleAvatar(
+                  backgroundColor: Theme.of(context).primaryColor.withAlpha(25), // 0.1 * 255 ≈ 25
+                  child: IconButton(
+                    icon: Icon(Icons.notifications_none_rounded, 
+                        color: isDark ? Colors.white : Theme.of(context).primaryColor),
+                    onPressed: () {},
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          // Stats Overview
+          SliverToBoxAdapter(
+            child: _buildStatsOverview(context).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0),
+          ),
+          
+          // Projects Header
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+            sliver: SliverToBoxAdapter(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'My Projects',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black,
+                    ),
+                  ),
+                  Text(
+                    '${priorityBoxes.length} Projects',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Projects Grid
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 1.2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (index < priorityBoxes.length) {
+                    return PriorityBoxCard(
+                      box: priorityBoxes[index],
+                      onTap: () => onBoxTapped(priorityBoxes[index]),
+                    );
+                  } else {
+                    return _buildAddProjectButton(context);
+                  }
+                },
+                childCount: priorityBoxes.length + 1,
+              ),
+            ),
+          ),
+          
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: onShowDialog,
+        backgroundColor: Theme.of(context).primaryColor,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        label: Text(
+          'New Task',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        icon: const Icon(Icons.add, color: Colors.white),
+      ).animate().fadeIn(delay: 200.ms).slideY(begin: 1, end: 0),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+}
