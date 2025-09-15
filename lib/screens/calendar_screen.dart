@@ -23,6 +23,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   bool _loading = true;
   bool _showKanban = false;
   List<Task> _allTasks = [];
+  bool _rankedView = false; // show ranked tasks for the selected day
+  bool _focusMode = false; // focus mode hides completed + non-urgent tasks
 
   @override
   void initState() {
@@ -46,9 +48,59 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
   }
 
+  Future<void> _quickAddNaturalLanguage() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Quick Add (Natural Language)'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "e.g. 'Remind me to call John tomorrow at 5 PM'"),
+          onSubmitted: (_) => Navigator.of(ctx).pop(controller.text.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Add')),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      setState(() => _loading = true);
+      try {
+        await _taskService.addTaskFromNaturalLanguage(result);
+        await _load();
+        widget.onTasksChanged?.call();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to parse: $e')));
+        setState(() => _loading = false);
+      }
+    }
+  }
+
   List<Task> _tasksFor(DateTime day) {
     final key = DateTime(day.year, day.month, day.day);
-    return _events[key] ?? [];
+    var list = List<Task>.from(_events[key] ?? []);
+    if (_focusMode) {
+      list = list.where((t) => !t.isCompleted && (t.isDueToday || t.isOverdue || t.isDueSoon)).toList();
+    }
+    if (_rankedView) {
+      // simple ranking using TaskService helper
+      list.sort((a, b) {
+        // Overdue first
+        final aOver = a.isOverdue ? 1 : 0;
+        final bOver = b.isOverdue ? 1 : 0;
+        if (aOver != bOver) return bOver.compareTo(aOver);
+        // Then due date
+        final dateCmp = a.dueDate.compareTo(b.dueDate);
+        if (dateCmp != 0) return dateCmp;
+        // Then priority
+        return b.priority.index.compareTo(a.priority.index);
+      });
+    }
+    return list;
   }
 
   Future<void> _onStatusChanged(Task task, TaskStatus newStatus) async {
@@ -119,6 +171,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
             icon: Icon(_showKanban ? Icons.calendar_month : Icons.view_kanban),
             onPressed: () => setState(() => _showKanban = !_showKanban),
           ),
+          IconButton(
+            tooltip: _focusMode ? 'Exit Focus Mode' : 'Enter Focus Mode',
+            icon: Icon(_focusMode ? Icons.visibility : Icons.visibility_off),
+            onPressed: () => setState(() => _focusMode = !_focusMode),
+          ),
+          IconButton(
+            tooltip: _rankedView ? 'Unrank Tasks' : 'Rank Tasks',
+            icon: Icon(_rankedView ? Icons.format_list_bulleted : Icons.trending_up),
+            onPressed: () => setState(() => _rankedView = !_rankedView),
+          ),
           PopupMenuButton<CalendarViewMode>(
             icon: const Icon(Icons.view_agenda),
             onSelected: (m) => setState(() => _mode = m),
@@ -131,15 +193,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
-      body: _loading ? const Center(child: CircularProgressIndicator()) : _showKanban
-          ? _buildKanban()
-          : Column(
-              children: [
-                _buildCalendar(),
-                const Divider(height: 1),
-                Expanded(child: _buildTaskList()),
-              ],
-            ),
+      floatingActionButton: !_showKanban
+          ? FloatingActionButton.extended(
+              onPressed: _quickAddNaturalLanguage,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('NL Task'),
+            )
+          : null,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _showKanban
+              ? _buildKanban()
+              : Column(
+                  children: [
+                    _buildCalendar(),
+                    const Divider(height: 1),
+                    Expanded(child: _buildTaskList()),
+                  ],
+                ),
     );
   }
 }

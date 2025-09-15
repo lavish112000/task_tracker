@@ -19,7 +19,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'task_tracker.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -52,6 +52,18 @@ class DatabaseHelper {
         streakCount INTEGER DEFAULT 0,
         totalTrackedSeconds INTEGER DEFAULT 0,
         workspaceId TEXT,
+        aiModel TEXT,
+        aiParameters TEXT,
+        isAutomated INTEGER DEFAULT 0,
+        focusLevel INTEGER DEFAULT 0,
+        rewardPoints INTEGER DEFAULT 0,
+        locationId TEXT,
+        latitude REAL,
+        longitude REAL,
+        isEncrypted INTEGER DEFAULT 0,
+        encryptionKey TEXT,
+        mindMapId TEXT,
+        relatedMindMapNodes TEXT,
         FOREIGN KEY(categoryId) REFERENCES categories(id)
       );
     ''');
@@ -60,6 +72,35 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_tasks_category ON tasks(categoryId);');
     await db.execute('CREATE INDEX idx_tasks_status ON tasks(status);');
     await db.execute('CREATE INDEX idx_tasks_workspace ON tasks(workspaceId);');
+    await db.execute('CREATE INDEX idx_tasks_mindMap ON tasks(mindMapId);');
+
+    await db.execute('''
+      CREATE TABLE automation_rules (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        triggerType TEXT NOT NULL,
+        triggerData TEXT,
+        actionType TEXT NOT NULL,
+        actionData TEXT,
+        isActive INTEGER NOT NULL DEFAULT 1,
+        createdAt TEXT NOT NULL
+      );
+    ''');
+    await db.execute('CREATE INDEX idx_automation_active ON automation_rules(isActive);');
+    await db.execute('''
+      CREATE TABLE automation_logs (
+        id TEXT PRIMARY KEY,
+        ruleId TEXT NOT NULL,
+        taskId TEXT NOT NULL,
+        actionType TEXT NOT NULL,
+        executedAt TEXT NOT NULL,
+        message TEXT,
+        FOREIGN KEY(ruleId) REFERENCES automation_rules(id) ON DELETE CASCADE,
+        FOREIGN KEY(taskId) REFERENCES tasks(id) ON DELETE CASCADE
+      );
+    ''');
+    await db.execute('CREATE INDEX idx_automation_logs_rule ON automation_logs(ruleId);');
+    await db.execute('CREATE INDEX idx_automation_logs_task ON automation_logs(taskId);');
 
     await db.execute('''
       CREATE TABLE subtasks (
@@ -84,7 +125,6 @@ class DatabaseHelper {
     ''');
     await db.execute('CREATE INDEX idx_status_changes_taskId ON status_changes(taskId);');
 
-    // New tables (v2 baseline also used for fresh create)
     await _createV2Structures(db);
 
     await db.insert('categories', {'id': 'work', 'name': 'Work'});
@@ -93,13 +133,12 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Add new columns if they don't exist
       final columns = await db.rawQuery('PRAGMA table_info(tasks);');
       final names = columns.map((c) => c['name']).toSet();
       Future<void> addCol(String def) async {
         final colName = def.split(' ').first;
         if (!names.contains(colName)) {
-          await db.execute('ALTER TABLE tasks ADD COLUMN ' + def + ';');
+          await db.execute('ALTER TABLE tasks ADD COLUMN $def;');
         }
       }
       await addCol('recurrenceRule TEXT');
@@ -109,6 +148,63 @@ class DatabaseHelper {
       await addCol('workspaceId TEXT');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspaceId);');
       await _createV2Structures(db);
+    }
+
+    if (oldVersion < 3) {
+      final columns = await db.rawQuery('PRAGMA table_info(tasks);');
+      final names = columns.map((c) => c['name']).toSet();
+      Future<void> addCol(String def) async {
+        final colName = def.split(' ').first;
+        if (!names.contains(colName)) {
+          await db.execute('ALTER TABLE tasks ADD COLUMN $def;');
+        }
+      }
+      await addCol('aiModel TEXT');
+      await addCol('aiParameters TEXT');
+      await addCol('isAutomated INTEGER DEFAULT 0');
+      await addCol('focusLevel INTEGER DEFAULT 0');
+      await addCol('rewardPoints INTEGER DEFAULT 0');
+      await addCol('locationId TEXT');
+      await addCol('latitude REAL');
+      await addCol('longitude REAL');
+      await addCol('isEncrypted INTEGER DEFAULT 0');
+      await addCol('encryptionKey TEXT');
+      await addCol('mindMapId TEXT');
+      await addCol('relatedMindMapNodes TEXT');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_mindMap ON tasks(mindMapId);');
+    }
+
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS automation_rules (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          triggerType TEXT NOT NULL,
+          triggerData TEXT,
+          actionType TEXT NOT NULL,
+          actionData TEXT,
+          isActive INTEGER NOT NULL DEFAULT 1,
+          createdAt TEXT NOT NULL
+        );
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_automation_active ON automation_rules(isActive);');
+    }
+
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS automation_logs (
+          id TEXT PRIMARY KEY,
+          ruleId TEXT NOT NULL,
+          taskId TEXT NOT NULL,
+          actionType TEXT NOT NULL,
+          executedAt TEXT NOT NULL,
+          message TEXT,
+          FOREIGN KEY(ruleId) REFERENCES automation_rules(id) ON DELETE CASCADE,
+          FOREIGN KEY(taskId) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_automation_logs_rule ON automation_logs(ruleId);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_automation_logs_task ON automation_logs(taskId);');
     }
   }
 
@@ -131,7 +227,7 @@ class DatabaseHelper {
         start TEXT NOT NULL,
         end TEXT,
         durationSeconds INTEGER,
-        source TEXT, -- manual / timer
+        source TEXT,
         FOREIGN KEY(taskId) REFERENCES tasks(id) ON DELETE CASCADE
       );
     ''');

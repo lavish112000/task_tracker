@@ -36,6 +36,28 @@ class Task {
   final List<SubTask> subtasks;
   final List<StatusChange> statusHistory;
 
+  // AI and automation features
+  final String? aiModel;
+  final Map<String, dynamic>? aiParameters;
+  final bool isAutomated;
+
+  // Gamification and focus tools
+  final int focusLevel;
+  final int rewardPoints;
+
+  // Location-based features
+  final String? locationId;
+  final double? latitude;
+  final double? longitude;
+
+  // Security features
+  final bool isEncrypted;
+  final String? encryptionKey;
+
+  // Mind map features
+  final String? mindMapId;
+  final List<String>? relatedMindMapNodes;
+
   Task({
     required this.id,
     required this.title,
@@ -56,6 +78,18 @@ class Task {
     this.status = TaskStatus.todo,
     this.subtasks = const [],
     this.statusHistory = const [],
+    this.aiModel,
+    this.aiParameters,
+    this.isAutomated = false,
+    this.focusLevel = 0,
+    this.rewardPoints = 0,
+    this.locationId,
+    this.latitude,
+    this.longitude,
+    this.isEncrypted = false,
+    this.encryptionKey,
+    this.mindMapId,
+    this.relatedMindMapNodes,
   }) : createdAt = createdAt ?? DateTime.now();
 
   Task copyWith({
@@ -78,6 +112,18 @@ class Task {
     int? totalTrackedSeconds,
     List<SubTask>? subtasks,
     List<StatusChange>? statusHistory,
+    String? aiModel,
+    Map<String, dynamic>? aiParameters,
+    bool? isAutomated,
+    int? focusLevel,
+    int? rewardPoints,
+    String? locationId,
+    double? latitude,
+    double? longitude,
+    bool? isEncrypted,
+    String? encryptionKey,
+    String? mindMapId,
+    List<String>? relatedMindMapNodes,
   }) => Task(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -98,6 +144,18 @@ class Task {
         totalTrackedSeconds: totalTrackedSeconds ?? this.totalTrackedSeconds,
         subtasks: subtasks ?? this.subtasks,
         statusHistory: statusHistory ?? this.statusHistory,
+        aiModel: aiModel ?? this.aiModel,
+        aiParameters: aiParameters ?? this.aiParameters,
+        isAutomated: isAutomated ?? this.isAutomated,
+        focusLevel: focusLevel ?? this.focusLevel,
+        rewardPoints: rewardPoints ?? this.rewardPoints,
+        locationId: locationId ?? this.locationId,
+        latitude: latitude ?? this.latitude,
+        longitude: longitude ?? this.longitude,
+        isEncrypted: isEncrypted ?? this.isEncrypted,
+        encryptionKey: encryptionKey ?? this.encryptionKey,
+        mindMapId: mindMapId ?? this.mindMapId,
+        relatedMindMapNodes: relatedMindMapNodes ?? this.relatedMindMapNodes,
       );
 
   // Derived helpers
@@ -131,6 +189,18 @@ class Task {
         'streakCount': streakCount,
         'totalTrackedSeconds': totalTrackedSeconds,
         'workspaceId': workspaceId,
+        'aiModel': aiModel,
+        'aiParameters': aiParameters,
+        'isAutomated': isAutomated,
+        'focusLevel': focusLevel,
+        'rewardPoints': rewardPoints,
+        'locationId': locationId,
+        'latitude': latitude,
+        'longitude': longitude,
+        'isEncrypted': isEncrypted,
+        'encryptionKey': encryptionKey,
+        'mindMapId': mindMapId,
+        'relatedMindMapNodes': relatedMindMapNodes,
       };
 
   Map<String, dynamic> toApiJson({bool includeSubtasks = false, bool includeHistory = false}) => {
@@ -157,6 +227,18 @@ class Task {
         'streakCount': streakCount,
         'totalTrackedSeconds': totalTrackedSeconds,
         'workspaceId': workspaceId,
+        'aiModel': aiModel,
+        'aiParameters': jsonEncode(aiParameters),
+        'isAutomated': isAutomated ? 1 : 0,
+        'focusLevel': focusLevel,
+        'rewardPoints': rewardPoints,
+        'locationId': locationId,
+        'latitude': latitude,
+        'longitude': longitude,
+        'isEncrypted': isEncrypted ? 1 : 0,
+        'encryptionKey': encryptionKey,
+        'mindMapId': mindMapId,
+        'relatedMindMapNodes': jsonEncode(relatedMindMapNodes),
       };
 
   static Task fromJson(Map<String, dynamic> json) {
@@ -197,6 +279,18 @@ class Task {
       lastCompletionDate: json['lastCompletionDate'] != null ? DateTime.tryParse(json['lastCompletionDate'].toString()) : null,
       streakCount: _toInt(json['streakCount']),
       totalTrackedSeconds: _toInt(json['totalTrackedSeconds']),
+      aiModel: json['aiModel']?.toString(),
+      aiParameters: json['aiParameters'] != null ? jsonDecode(json['aiParameters']) : null,
+      isAutomated: json['isAutomated'] == true || json['isAutomated'] == 1,
+      focusLevel: _toInt(json['focusLevel']),
+      rewardPoints: _toInt(json['rewardPoints']),
+      locationId: json['locationId']?.toString(),
+      latitude: _toDouble(json['latitude']),
+      longitude: _toDouble(json['longitude']),
+      isEncrypted: json['isEncrypted'] == true || json['isEncrypted'] == 1,
+      encryptionKey: json['encryptionKey']?.toString(),
+      mindMapId: json['mindMapId']?.toString(),
+      relatedMindMapNodes: json['relatedMindMapNodes'] != null ? List<String>.from(json['relatedMindMapNodes']) : null,
     );
   }
 
@@ -238,6 +332,18 @@ class Task {
       lastCompletionDate: _try(json['lastCompletionDate']),
       streakCount: _toInt(json['streakCount']),
       totalTrackedSeconds: _toInt(json['totalTrackedSeconds']),
+      aiModel: json['aiModel']?.toString(),
+      aiParameters: json['aiParameters'] != null ? jsonDecode(json['aiParameters']) : null,
+      isAutomated: json['isAutomated'] == true || json['isAutomated'] == 1,
+      focusLevel: _toInt(json['focusLevel']),
+      rewardPoints: _toInt(json['rewardPoints']),
+      locationId: json['locationId']?.toString(),
+      latitude: _toDouble(json['latitude']),
+      longitude: _toDouble(json['longitude']),
+      isEncrypted: json['isEncrypted'] == true || json['isEncrypted'] == 1,
+      encryptionKey: json['encryptionKey']?.toString(),
+      mindMapId: json['mindMapId']?.toString(),
+      relatedMindMapNodes: json['relatedMindMapNodes'] != null ? List<String>.from(json['relatedMindMapNodes']) : null,
     );
   }
 
@@ -254,5 +360,12 @@ class Task {
     if (v is int) return v;
     if (v is double) return v.toInt();
     return int.tryParse(v.toString()) ?? 0;
+  }
+
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
   }
 }

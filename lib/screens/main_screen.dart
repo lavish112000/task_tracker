@@ -7,6 +7,10 @@ import 'package:task_tracker/screens/calendar_screen.dart';
 import 'package:task_tracker/screens/statistics_screen.dart';
 import 'package:task_tracker/screens/profile_screen.dart';
 import 'package:task_tracker/screens/home_screen.dart';
+import 'package:task_tracker/screens/pomodoro_screen.dart';
+import 'package:task_tracker/screens/dashboard_screen.dart';
+import 'package:task_tracker/screens/mind_map_screen.dart';
+import 'package:task_tracker/screens/automation_rules_screen.dart';
 import 'package:task_tracker/widgets/add_task_dialog.dart';
 import 'package:task_tracker/widgets/task_details_dialog.dart';
 
@@ -197,6 +201,93 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     }
   }
 
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue, Colors.purple],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(Icons.task_alt, color: Colors.white, size: 48),
+                SizedBox(height: 8),
+                Text(
+                  'Task Tracker Pro',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Text('Advanced Features', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              ],
+            ),
+          ),
+          _drawerItem(Icons.dashboard, 'Custom Dashboard', () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+          }),
+          _drawerItem(Icons.timer, 'Pomodoro Focus', () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const PomodoroScreen()));
+          }),
+          _drawerItem(Icons.account_tree, 'Mind Map View', () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const MindMapScreen()));
+          }),
+          _drawerItem(Icons.smart_toy, 'Automation Rules', () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const AutomationRulesScreen()));
+          }),
+          const Divider(),
+          _drawerItem(Icons.security, 'Security Settings', () {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Security settings coming soon!')),
+            );
+          }),
+          _drawerItem(Icons.location_on, 'Location Reminders', () {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Location reminders coming soon!')),
+            );
+          }),
+          _drawerItem(Icons.voice_chat, 'Voice Commands', () {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Voice commands coming soon!')),
+            );
+          }),
+          const Divider(),
+          _drawerItem(Icons.help, 'Help & Support', () {
+            Navigator.pop(context);
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Help & Support'),
+                content: const Text('Welcome to Task Tracker Pro! Use the drawer to access advanced features like Pomodoro focus sessions, mind mapping, and automation rules.'),
+                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerItem(IconData icon, String title, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      onTap: onTap,
+    );
+  }
+
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 0:
@@ -221,6 +312,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: _buildDrawer(),
       body: _buildBody(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

@@ -7,6 +7,7 @@ import 'package:task_tracker/models/subtask.dart';
 import 'package:task_tracker/models/status_change.dart';
 import 'package:task_tracker/services/database_helper.dart';
 import 'package:task_tracker/services/recurrence_service.dart';
+import 'package:task_tracker/services/automation_service.dart';
 
 String _genId() {
   final rnd = Random();
@@ -120,13 +121,11 @@ class TaskService {
 
   Future<void> updateStatus(String taskId, TaskStatus newStatus) async {
     final db = await DatabaseHelper().database;
-    // Load task first to check recurrence
     final rows = await db.query('tasks', where: 'id = ?', whereArgs: [taskId], limit: 1);
     if (rows.isEmpty) return;
     final current = Task.fromDbJson(rows.first);
 
     if (newStatus == TaskStatus.completed && (current.recurrenceRule != null && current.recurrenceRule!.isNotEmpty)) {
-      // Use recurrence service to advance; it handles DB + history logging.
       await RecurrenceService().recordCompletionAndAdvance(current, logStatusTransitions: true);
       return;
     }
@@ -138,6 +137,14 @@ class TaskService {
       'completedAt': newStatus == TaskStatus.completed ? now.toIso8601String() : null,
     }, where: 'id = ?', whereArgs: [taskId]);
     await db.insert('status_changes', StatusChange(taskId: taskId, status: newStatus, changedAt: now).toJson());
+
+    // Gamification reward for completion
+    if (newStatus == TaskStatus.completed) {
+      final updated = current.copyWith(rewardPoints: current.rewardPoints + 10, streakCount: current.streakCount + 1);
+      await updateTask(updated);
+    }
+    // Evaluate automation
+    await AutomationService().evaluateTaskStatusChange(current.copyWith(status: newStatus, isCompleted: newStatus == TaskStatus.completed));
   }
 
   Future<void> deleteTask(String id) async {
@@ -189,5 +196,124 @@ class TaskService {
   Future<void> deleteSubTask(String subTaskId) async {
     final db = await DatabaseHelper().database;
     await db.delete('subtasks', where: 'id = ?', whereArgs: [subTaskId]);
+  }
+
+  Future<List<Task>> getTasksByMindMap(String mindMapId) async {
+    final db = await DatabaseHelper().database;
+    final rows = await db.query('tasks', where: 'mindMapId = ?', whereArgs: [mindMapId]);
+    return rows.map(Task.fromDbJson).toList();
+  }
+
+  // --- AI Features ---
+  Future<Task> addTaskFromNaturalLanguage(String input) async {
+    // Very naive parsing: look for 'tomorrow' or date pattern YYYY-MM-DD and time HH:MM
+    final lower = input.toLowerCase();
+    DateTime due = DateTime.now().add(const Duration(days: 1));
+    final now = DateTime.now();
+    if (lower.contains('tomorrow')) {
+      due = DateTime(now.year, now.month, now.day).add(const Duration(days: 1, hours: 9));
+    }
+    final dateRegex = RegExp(r'(\d{4})-(\d{2})-(\d{2})');
+    final timeRegex = RegExp(r'(\d{1,2}):(\d{2})');
+    final dateMatch = dateRegex.firstMatch(input);
+    final timeMatch = timeRegex.firstMatch(input);
+    if (dateMatch != null) {
+      final y = int.tryParse(dateMatch.group(1)!);
+      final m = int.tryParse(dateMatch.group(2)!);
+      final d = int.tryParse(dateMatch.group(3)!);
+      if (y != null && m != null && d != null) {
+        due = DateTime(y, m, d, due.hour, due.minute);
+      }
+    }
+    if (timeMatch != null) {
+      final h = int.tryParse(timeMatch.group(1)!);
+      final min = int.tryParse(timeMatch.group(2)!);
+      if (h != null && min != null) {
+        due = DateTime(due.year, due.month, due.day, h, min);
+      }
+    }
+    final task = Task(
+      id: '',
+      title: input.length > 60 ? input.substring(0, 60) : input,
+      description: input,
+      dueDate: due,
+      isCompleted: false,
+      priority: Priority.medium,
+      aiModel: 'rule-based-v1',
+      aiParameters: {'source': 'nlp_basic'},
+    );
+    return addTask(task);
+  }
+  Future<List<Task>> getRankedTasks(List<Task> tasks) async {
+    tasks.sort((a, b) {
+      int score(Task t) {
+        int s = 0;
+        if (t.isOverdue) s += 1000;
+        final diff = t.dueDate.difference(DateTime.now()).inHours;
+        s += (168 - diff.clamp(0, 168));
+        s += (2 - t.priority.index) * 50; // high priority gives more
+        s += t.streakCount;
+        return s;
+      }
+      return score(b).compareTo(score(a));
+    });
+    return tasks;
+  }
+  Future<DateTime?> suggestSmartSlot(List<Task> tasks) async {
+    // Find a day with fewer than 5 tasks in next 7 days
+    final now = DateTime.now();
+    for (int i = 0; i < 7; i++) {
+      final day = DateTime(now.year, now.month, now.day).add(Duration(days: i));
+      final count = tasks.where((t) => t.dueDate.year == day.year && t.dueDate.month == day.month && t.dueDate.day == day.day).length;
+      if (count < 5) {
+        return day.add(const Duration(hours: 9));
+      }
+    }
+    return now.add(const Duration(hours: 1));
+  }
+  // --- Gamification ---
+  Future<void> awardGamification(Task task, {int points = 5}) async {
+    final updated = task.copyWith(rewardPoints: task.rewardPoints + points);
+    await updateTask(updated);
+  }
+  // --- Focus Tools ---
+  Future<void> logFocusSession(Task task) async {
+    final updated = task.copyWith(focusLevel: task.focusLevel + 1, totalTrackedSeconds: task.totalTrackedSeconds + 1500);
+    await updateTask(updated);
+  }
+  // --- Location-Based Reminders ---
+  Future<void> setLocationReminder(Task task, double lat, double lng) async {
+    final updated = task.copyWith(latitude: lat, longitude: lng, locationId: 'geo_${lat.toStringAsFixed(3)}_${lng.toStringAsFixed(3)}');
+    await updateTask(updated);
+  }
+  // --- Security ---
+  Future<Task> encryptTask(Task task, String key) async {
+    final updated = task.copyWith(isEncrypted: true, encryptionKey: key);
+    await updateTask(updated);
+    return updated;
+  }
+  Future<Task> decryptTask(Task task, String key) async {
+    if (task.encryptionKey == key) {
+      final updated = task.copyWith(isEncrypted: false);
+      await updateTask(updated);
+      return updated;
+    }
+    throw Exception('Invalid encryption key');
+  }
+  // --- Mind Map / Visual Linking ---
+  Future<void> linkTasks(String sourceId, String targetId) async {
+    final source = await getTask(sourceId, includeSubtasks: false, includeHistory: false);
+    if (source == null) return;
+    final updatedLinks = (source.relatedMindMapNodes ?? []).toSet();
+    if (updatedLinks.add(targetId)) {
+      await updateTask(source.copyWith(relatedMindMapNodes: updatedLinks.toList()));
+    }
+  }
+  Future<void> unlinkTask(String sourceId, String targetId) async {
+    final source = await getTask(sourceId, includeSubtasks: false, includeHistory: false);
+    if (source == null) return;
+    final updatedLinks = (source.relatedMindMapNodes ?? []).toList();
+    updatedLinks.remove(targetId);
+    await updateTask(source.copyWith(relatedMindMapNodes: updatedLinks));
   }
 }
