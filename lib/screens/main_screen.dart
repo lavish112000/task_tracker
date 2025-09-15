@@ -13,6 +13,7 @@ import 'package:task_tracker/screens/mind_map_screen.dart';
 import 'package:task_tracker/screens/automation_rules_screen.dart';
 import 'package:task_tracker/widgets/add_task_dialog.dart';
 import 'package:task_tracker/widgets/task_details_dialog.dart';
+import 'package:task_tracker/widgets/custom_bottom_nav_bar.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -290,7 +291,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
 
   Widget _buildBody() {
     switch (_selectedIndex) {
-      case 0:
+      case 0: // Tasks (Home)
         return HomeScreen(
           tasks: _filteredTasks,
           isLoading: _isLoading,
@@ -298,11 +299,17 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           onTaskTap: _showTaskDetails,
           onAddTask: _showAddTaskDialog,
         );
-      case 1:
+      case 1: // Calendar
         return CalendarScreen(onTasksChanged: _loadTasks);
-      case 2:
-        return StatisticsScreen(priorityBoxes: _getPriorityBoxes());
-      case 3:
+      case 2: // Dashboard
+        return const DashboardScreen();
+      case 3: // Focus (Pomodoro)
+        return const PomodoroScreen();
+      case 4: // Mind Map
+        return const MindMapScreen();
+      case 5: // Automation Rules
+        return const AutomationRulesScreen();
+      case 6: // Profile
         return ProfileScreen(priorityBoxes: _getPriorityBoxes());
       default:
         return const SizedBox.shrink();
@@ -314,16 +321,9 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     return Scaffold(
       drawer: _buildDrawer(),
       body: _buildBody(),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onNavBarTap,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Tasks'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Calendar'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Stats'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+      bottomNavigationBar: CustomBottomNavBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: (i) => setState(() => _selectedIndex = i),
       ),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
@@ -334,4 +334,3 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 }
-

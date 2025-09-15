@@ -9,6 +9,7 @@ import 'package:task_tracker/models/category.dart';
 import 'package:task_tracker/models/task_status.dart';
 import 'package:task_tracker/models/subtask.dart';
 import 'package:task_tracker/services/category_service.dart';
+import 'package:task_tracker/services/task_service.dart';
 
 class AddTaskDialog extends StatefulWidget {
   final Task? editingTask;
@@ -54,6 +55,8 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   final List<SubTask> _subTasks = [];
   final _subTaskController = TextEditingController();
   TaskStatus _status = TaskStatus.todo;
+  final _taskService = TaskService();
+  bool _suggestingSlot = false;
 
   @override
   void initState() {
@@ -225,39 +228,46 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                                   ),
                                 ),
                                 child: Text(
-                                  '${_selectedDate.year}-${_selectedDate.month}-${_selectedDate.day}',
-                                  style: TextStyle(fontSize: 16),
+                                  '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2,'0')}-${_selectedDate.day.toString().padLeft(2,'0')}',
+                                  style: const TextStyle(fontSize: 16),
                                 ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final time = await showTimePicker(
+                                  context: context,
+                                  initialTime: _selectedTime,
+                                );
+                                if (time != null) setState(() => _selectedTime = time);
+                              },
+                              child: InputDecorator(
+                                decoration: InputDecoration(
+                                  labelText: 'Due Time',
+                                  filled: true,
+                                  fillColor: const Color.fromRGBO(255, 255, 255, 0.8),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: Text(_selectedTime.format(context), style: const TextStyle(fontSize: 16)),
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      InkWell(
-                        onTap: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: _selectedTime,
-                          );
-                          if (time != null) setState(() => _selectedTime = time);
-                        },
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: 'Due Time',
-                            filled: true,
-                            fillColor: const Color.fromRGBO(255, 255, 255, 0.8),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Text(
-                            _selectedTime.format(context),
-                            style: TextStyle(fontSize: 16),
-                          ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: _suggestingSlot ? null : _handleSuggestSlot,
+                          icon: _suggestingSlot ? const SizedBox(height:16,width:16,child: CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.lightbulb_outline),
+                          label: Text(_suggestingSlot ? 'Suggesting...' : 'Suggest Slot'),
                         ),
                       ),
-                      const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: _selectedCategoryId,
                         decoration: InputDecoration(
@@ -452,5 +462,30 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       _subTasks.add(SubTask(taskId: widget.editingTask?.id ?? '', title: _subTaskController.text.trim()));
       _subTaskController.clear();
     });
+  }
+
+  Future<void> _handleSuggestSlot() async {
+    setState(()=> _suggestingSlot = true);
+    try {
+      final tasks = await _taskService.getTasks();
+      final slot = await _taskService.suggestSmartSlot(tasks);
+      if (slot != null && mounted) {
+        setState(() {
+          _selectedDate = DateTime(slot.year, slot.month, slot.day);
+          _selectedTime = TimeOfDay(hour: slot.hour, minute: slot.minute);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Suggested: ${slot.toLocal()}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Suggestion failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(()=> _suggestingSlot = false);
+    }
   }
 }

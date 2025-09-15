@@ -1,5 +1,9 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:encrypt/encrypt.dart' as enc;
+import 'package:crypto/crypto.dart';
 import 'package:task_tracker/models/task.dart';
 import 'package:task_tracker/models/priority.dart';
 import 'package:task_tracker/models/task_status.dart';
@@ -287,18 +291,59 @@ class TaskService {
     await updateTask(updated);
   }
   // --- Security ---
+  // === Encryption helpers ===
+  static const _encPrefix = 'enc:';
+  enc.Key _deriveKey(String pass) {
+    final hash = sha256.convert(utf8.encode(pass));
+    return enc.Key(Uint8List.fromList(hash.bytes)); // 32 bytes
+  }
+  enc.IV _randomIv() => enc.IV.fromSecureRandom(16);
+  String _encryptString(String plain, String pass) {
+    if (plain.isEmpty) return plain;
+    final key = _deriveKey(pass);
+    final iv = _randomIv();
+    final cipher = enc.Encrypter(enc.AES(key, mode: enc.AESMode.cbc));
+    final encrypted = cipher.encrypt(plain, iv: iv);
+    // store iv + ciphertext base64
+    final raw = iv.bytes + encrypted.bytes;
+    return _encPrefix + base64Encode(raw);
+  }
+  String _decryptString(String data, String pass) {
+    if (!data.startsWith(_encPrefix)) return data;
+    final rawB64 = data.substring(_encPrefix.length);
+    late List<int> raw;
+    try { raw = base64Decode(rawB64); } catch (_) { return data; }
+    if (raw.length < 16) return data;
+    final ivBytes = Uint8List.fromList(raw.sublist(0,16));
+    final cipherBytes = Uint8List.fromList(raw.sublist(16));
+    final key = _deriveKey(pass);
+    final cipher = enc.Encrypter(enc.AES(key, mode: enc.AESMode.cbc));
+    try { return cipher.decrypt(enc.Encrypted(cipherBytes), iv: enc.IV(ivBytes)); } catch (_) { return data; }
+  }
+  Task encryptOffline(Task task, String pass){
+    if (task.isEncrypted) return task;
+    final encDesc = _encryptString(task.description, pass);
+    final encNotes = task.notes==null? null : _encryptString(task.notes!, pass);
+    return task.copyWith(description: encDesc, notes: encNotes, isEncrypted: true, encryptionKey: sha256.convert(utf8.encode(pass)).toString());
+  }
+  Task decryptOffline(Task task, String pass){
+    if (!task.isEncrypted) return task;
+    final hashed = sha256.convert(utf8.encode(pass)).toString();
+    if (task.encryptionKey != hashed) return task; // wrong key -> return as-is
+    final decDesc = _decryptString(task.description, pass);
+    final decNotes = task.notes==null? null : _decryptString(task.notes!, pass);
+    return task.copyWith(description: decDesc, notes: decNotes, isEncrypted: false);
+  }
+  // override existing encrypt/decrypt to also transform fields
   Future<Task> encryptTask(Task task, String key) async {
-    final updated = task.copyWith(isEncrypted: true, encryptionKey: key);
-    await updateTask(updated);
-    return updated;
+    final dbTask = encryptOffline(task, key);
+    await updateTask(dbTask);
+    return dbTask;
   }
   Future<Task> decryptTask(Task task, String key) async {
-    if (task.encryptionKey == key) {
-      final updated = task.copyWith(isEncrypted: false);
-      await updateTask(updated);
-      return updated;
-    }
-    throw Exception('Invalid encryption key');
+    final dbTask = decryptOffline(task, key);
+    await updateTask(dbTask);
+    return dbTask;
   }
   // --- Mind Map / Visual Linking ---
   Future<void> linkTasks(String sourceId, String targetId) async {
