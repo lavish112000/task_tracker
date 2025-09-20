@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:task_tracker/models/priority.dart';
 import 'package:task_tracker/models/task.dart';
 import 'package:task_tracker/models/priority_box.dart';
-import 'package:task_tracker/services/task_service.dart';
 import 'package:task_tracker/screens/calendar_screen.dart';
-import 'package:task_tracker/screens/statistics_screen.dart';
-import 'package:task_tracker/screens/profile_screen.dart';
-import 'package:task_tracker/screens/home_screen.dart';
-import 'package:task_tracker/screens/pomodoro_screen.dart';
 import 'package:task_tracker/screens/dashboard_screen.dart';
+import 'package:task_tracker/screens/home_screen.dart';
 import 'package:task_tracker/screens/mind_map_screen.dart';
+import 'package:task_tracker/screens/notifications_screen.dart';
+import 'package:task_tracker/screens/pomodoro_screen.dart';
+import 'package:task_tracker/screens/profile_screen.dart';
+import 'package:task_tracker/screens/statistics_screen.dart';
 import 'package:task_tracker/screens/automation_rules_screen.dart';
+import 'package:task_tracker/services/task_service.dart';
+import 'package:task_tracker/widgets/custom_drawer.dart';
+import 'package:task_tracker/widgets/custom_bottom_nav_bar.dart';
 import 'package:task_tracker/widgets/add_task_dialog.dart';
 import 'package:task_tracker/widgets/task_details_dialog.dart';
-import 'package:task_tracker/widgets/custom_bottom_nav_bar.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -22,19 +24,31 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin, RestorationMixin {
   final TaskService _taskService = TaskService();
   List<Task> _tasks = [];
   List<Task> _filteredTasks = [];
   bool _isLoading = true;
   int _selectedIndex = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  
+  // Restorable state for navigation
+  final RestorableInt _currentPageIndex = RestorableInt(1); // Default to Home
+  
+  @override
+  String get restorationId => 'main_screen';
+  
+  @override
+  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
+    registerForRestoration(_currentPageIndex, 'page_index');
+  }
 
   // Filtering and sorting
-  String _searchQuery = '';
-  Priority? _priorityFilter;
-  bool _showCompleted = true;
-  String _sortBy = 'dueDate';
-  bool _sortAscending = true;
+  final String _searchQuery = '';
+  final bool _showCompleted = true;
+  final String _sortBy = 'dueDate';
+  final bool _sortAscending = true;
+  Priority? _priorityFilter; // Added missing filter state
 
   @override
   void initState() {
@@ -97,13 +111,11 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     setState(() {});
   }
 
-  void _onNavBarTap(int index) => setState(() => _selectedIndex = index);
-
   List<PriorityBox> _getPriorityBoxes() => [
         PriorityBox(
           id: 'high',
           name: 'High',
-            color: Colors.red,
+          color: Colors.red,
           tasks: _tasks.where((t) => t.priority == Priority.high).toList(),
         ),
         PriorityBox(
@@ -202,133 +214,122 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     }
   }
 
-  Widget _buildDrawer() {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          const DrawerHeader(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blue, Colors.purple],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(Icons.task_alt, color: Colors.white, size: 48),
-                SizedBox(height: 8),
-                Text(
-                  'Task Tracker Pro',
-                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                Text('Advanced Features', style: TextStyle(color: Colors.white70, fontSize: 14)),
-              ],
-            ),
-          ),
-          _drawerItem(Icons.dashboard, 'Custom Dashboard', () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
-          }),
-          _drawerItem(Icons.timer, 'Pomodoro Focus', () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const PomodoroScreen()));
-          }),
-          _drawerItem(Icons.account_tree, 'Mind Map View', () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const MindMapScreen()));
-          }),
-          _drawerItem(Icons.smart_toy, 'Automation Rules', () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const AutomationRulesScreen()));
-          }),
-          const Divider(),
-          _drawerItem(Icons.security, 'Security Settings', () {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Security settings coming soon!')),
-            );
-          }),
-          _drawerItem(Icons.location_on, 'Location Reminders', () {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Location reminders coming soon!')),
-            );
-          }),
-          _drawerItem(Icons.voice_chat, 'Voice Commands', () {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Voice commands coming soon!')),
-            );
-          }),
-          const Divider(),
-          _drawerItem(Icons.help, 'Help & Support', () {
-            Navigator.pop(context);
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Help & Support'),
-                content: const Text('Welcome to Task Tracker Pro! Use the drawer to access advanced features like Pomodoro focus sessions, mind mapping, and automation rules.'),
-                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
+  Widget _buildCurrentScreen() {
+    // Prefer drawer index when present, else fall back to bottom nav mapping
+    final idx = (_currentPageIndex.value >= 0) ? _currentPageIndex.value : _selectedIndex;
 
-  Widget _drawerItem(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: onTap,
-    );
-  }
-
-  Widget _buildBody() {
-    switch (_selectedIndex) {
-      case 0: // Tasks (Home)
+    switch (idx) {
+      case 0:
+        return const DashboardScreen();
+      case 1:
         return HomeScreen(
           tasks: _filteredTasks,
           isLoading: _isLoading,
-          onTasksChanged: _loadTasks,
-          onTaskTap: _showTaskDetails,
-          onAddTask: _showAddTaskDialog,
+          onAddTask: () => _showAddTaskDialog(),
+          onTaskTap: (task) => _showTaskDetails(task),
+          onTasksChanged: () async {
+            await _loadTasks();
+          },
         );
-      case 1: // Calendar
-        return CalendarScreen(onTasksChanged: _loadTasks);
-      case 2: // Dashboard
-        return const DashboardScreen();
-      case 3: // Focus (Pomodoro)
-        return const PomodoroScreen();
-      case 4: // Mind Map
+      case 2:
+        return const CalendarScreen();
+      case 3:
+        return StatisticsScreen(priorityBoxes: _getPriorityBoxes());
+      case 4:
         return const MindMapScreen();
-      case 5: // Automation Rules
+      case 5:
+        return const PomodoroScreen();
+      case 6:
+        return const NotificationsScreen();
+      case 7:
         return const AutomationRulesScreen();
-      case 6: // Profile
+      case 8:
         return ProfileScreen(priorityBoxes: _getPriorityBoxes());
       default:
-        return const SizedBox.shrink();
+        // Map bottom nav (0..3) to Home/Calendar/Statistics/Profile if needed
+        switch (_selectedIndex) {
+          case 0:
+            return HomeScreen(
+              tasks: _filteredTasks,
+              isLoading: _isLoading,
+              onAddTask: () => _showAddTaskDialog(),
+              onTaskTap: (task) => _showTaskDetails(task),
+              onTasksChanged: () async {
+                await _loadTasks();
+              },
+            );
+          case 1:
+            return const CalendarScreen();
+          case 2:
+            return StatisticsScreen(priorityBoxes: _getPriorityBoxes());
+          case 3:
+            return ProfileScreen(priorityBoxes: _getPriorityBoxes());
+          default:
+            return const Center(child: Text('Screen not found'));
+        }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: _buildDrawer(),
-      body: _buildBody(),
-      bottomNavigationBar: CustomBottomNavBar(
-        selectedIndex: _selectedIndex,
-        onItemTapped: (i) => setState(() => _selectedIndex = i),
+      key: _scaffoldKey,
+      drawer: CustomDrawer(
+        selectedIndex: _currentPageIndex.value,
+        onItemTapped: (index) {
+          setState(() {
+            _currentPageIndex.value = index;
+            _selectedIndex = index;
+          });
+          // Close drawer after selection if on mobile
+          if (MediaQuery.of(context).size.width < 800) {
+            Navigator.pop(context);
+          }
+        },
       ),
-      floatingActionButton: _selectedIndex == 0
+      body: Row(
+        children: [
+          // Show drawer as sidebar on larger screens
+          if (MediaQuery.of(context).size.width >= 800)
+            CustomDrawer(
+              selectedIndex: _currentPageIndex.value,
+              onItemTapped: (index) {
+                setState(() {
+                  _currentPageIndex.value = index;
+                  _selectedIndex = index;
+                });
+              },
+            ),
+          // Main content
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _buildCurrentScreen(),
+          ),
+        ],
+      ),
+      floatingActionButton: _selectedIndex == 0 || _selectedIndex == 1
           ? FloatingActionButton(
               onPressed: () => _showAddTaskDialog(),
-              child: const Icon(Icons.add),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: Icon(
+                Icons.add,
+                color: Theme.of(context).colorScheme.onPrimary,
+              ),
+            )
+          : null,
+      // Show bottom navigation only on mobile
+      bottomNavigationBar: MediaQuery.of(context).size.width < 800
+          ? CustomBottomNavBar(
+              selectedIndex: _selectedIndex,
+              onItemTapped: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                  // Map bottom nav (0..3) to drawer indices [1,2,3,8]
+                  const mapping = [1, 2, 3, 8];
+                  _currentPageIndex.value = mapping[index];
+                });
+              },
             )
           : null,
     );
